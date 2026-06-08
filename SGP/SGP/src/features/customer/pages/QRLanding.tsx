@@ -46,10 +46,10 @@ export const QRLanding: React.FC = () => {
     if (!selectedTable || passcode.length < 4) return;
     setIsValidating(true);
     setAuthError(null);
-    const ok = await enterTable(selectedTable.id, passcode);
+    const res = await enterTable(selectedTable.id, passcode);
     setIsValidating(false);
-    if (ok) { notificationService.playChime('success'); navigate('/menu'); }
-    else { setPasscode(''); setAuthError('Clave incorrecta. Ej: Mesa 1 = 1001, Mesa 15 = 1015.'); }
+    if (res.ok) { notificationService.playChime('success'); navigate('/menu'); }
+    else { setPasscode(''); setAuthError(res.error ?? 'Clave incorrecta. Ej: Mesa 1 = 1001, Mesa 15 = 1015.'); }
   };
 
   return (

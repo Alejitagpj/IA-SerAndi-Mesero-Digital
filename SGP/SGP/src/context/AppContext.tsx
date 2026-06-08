@@ -14,7 +14,7 @@ interface AppContextType {
   lastAddedProduct: { product: Product; ts: number } | null;
   
   // Table operations
-  enterTable: (tableId: string, passcode: string) => Promise<boolean>;
+  enterTable: (tableId: string, passcode: string) => Promise<{ ok: boolean; error?: string }>;
   exitTable: () => void;
   checkTableSessionStatus: () => Promise<void>;
   
@@ -116,34 +116,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]);
   };
 
-  const enterTable = async (tableId: string, passcode: string): Promise<boolean> => {
+  const enterTable = async (tableId: string, passcode: string): Promise<{ ok: boolean; error?: string }> => {
     setError(null);
-    try {
-      // 1. Validate passcode
-      const isValid = await sgpApi.validateTablePasscode(tableId, passcode);
-      if (!isValid) {
-        throw new Error('Código de acceso incorrecto. Verifica el número e intenta nuevamente.');
-      }
 
-      // 2. Fetch all tables to get the table information
+    // 1. Validar passcode (error específico de PIN)
+    const isValid = await sgpApi.validateTablePasscode(tableId, passcode.trim());
+    if (!isValid) {
+      const msg = 'Clave incorrecta. Ej: Mesa 1 = 1001, Mesa 15 = 1015.';
+      setError(msg);
+      return { ok: false, error: msg };
+    }
+
+    try {
+      // 2. Datos de la mesa
       const { data: tables } = await sgpApi.getTables();
       const table = tables?.find(t => t.id === tableId) || null;
-      if (!table) throw new Error('Mesa no encontrada');
+      if (!table) throw new Error('Mesa no encontrada.');
 
-      // 3. Resolve active session
+      // 3. Resolver sesión activa (aquí los fallos NO son por el PIN)
       const { data: session, error: sessError } = await sgpApi.getOrCreateActiveSession(tableId);
-      if (sessError || !session) throw new Error(sessError || 'Error al iniciar sesión de mesa');
+      if (sessError || !session) {
+        throw new Error('No se pudo iniciar la sesión de la mesa. Intenta de nuevo en unos segundos.');
+      }
 
-      // 4. Save locally
+      // 4. Guardar localmente
       localStorage.setItem('sgp_table_id', tableId);
       localStorage.setItem('sgp_session_id', session.id);
       setActiveTable(table);
       setActiveSession(session);
 
-      return true;
+      return { ok: true };
     } catch (err: any) {
       setError(err.message);
-      return false;
+      return { ok: false, error: err.message };
     }
   };
 
