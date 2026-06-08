@@ -99,12 +99,21 @@ export const WaiterDashboard: React.FC = () => {
     // Check if table has dishes waiting in "ready"
     const sessionOrders = orders.filter(o => o.table_session_id === session.id);
     const hasReady = sessionOrders.some(o => o.status === 'ready');
+    const inKitchen = sessionOrders.some(o => o.status === 'pending' || o.status === 'preparing');
 
     if (hasReady) {
       return {
         status: 'ready',
         label: '¡Listo para entregar!',
         color: 'bg-emerald-950/40 border-emerald-500/80 text-emerald-400 animate-pulse font-extrabold'
+      };
+    }
+
+    if (inKitchen) {
+      return {
+        status: 'active',
+        label: 'En cocina',
+        color: 'bg-amber-950/30 border-amber-500/50 text-amber-300 font-semibold'
       };
     }
 

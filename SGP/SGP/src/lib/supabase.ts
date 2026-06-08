@@ -21,6 +21,15 @@ export const isMockMode = REMOTE_BASE === undefined;
 
 console.log(`[SGP API] Running in ${isMockMode ? 'MOCK' : 'REMOTE (Postgres + SSE)'} Mode`);
 
+// Si el pedido no trae nombre de mesa, lo resolvemos desde el catálogo estático.
+function fillTableName<T extends { table_name?: string | null; table_id?: string }>(o: T): T {
+  if (o && !o.table_name && o.table_id) {
+    const t = mockTables.find((tb) => tb.id === o.table_id);
+    if (t) return { ...o, table_name: t.name };
+  }
+  return o;
+}
+
 async function api<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${REMOTE_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -192,7 +201,7 @@ export const sgpApi = {
     }
     try {
       const data = await api<Order[]>(`/api/order/session/${sessionId}`);
-      return { data, error: null };
+      return { data: data.map(fillTableName), error: null };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -215,7 +224,7 @@ export const sgpApi = {
     }
     try {
       const data = await api<Order[]>(`/api/orders/active?storeId=${encodeURIComponent(storeId)}`);
-      return { data, error: null };
+      return { data: data.map(fillTableName), error: null };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -228,7 +237,7 @@ export const sgpApi = {
     }
     try {
       const data = await api<Order[]>(`/api/orders/all?storeId=${encodeURIComponent(storeId)}`);
-      return { data, error: null };
+      return { data: data.map(fillTableName), error: null };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -251,7 +260,10 @@ export const sgpApi = {
     es.onmessage = (e) => {
       try {
         const { event, payload } = JSON.parse(e.data);
-        callback(event, payload);
+        const enriched = (event === 'order_created' || event === 'status_changed')
+          ? fillTableName(payload)
+          : payload;
+        callback(event, enriched);
       } catch { /* keepalive u otro */ }
     };
     return () => es.close();

@@ -113,6 +113,7 @@ export interface Order {
   id: string;
   store_id: string;
   table_session_id: string;
+  table_id?: string; // para resolver el nombre de mesa en el cliente
   table_name?: string; // Hydrated for UI
   status: OrderStatus;
   total_amount: number;

@@ -102,14 +102,16 @@ function hydrateOrder(row) {
 }
 
 const ORDER_SELECT = `
-  select o.*, coalesce(
+  select o.*, ts.table_id, coalesce(
     json_agg(json_build_object(
       'id', i.id, 'order_id', i.order_id, 'product_id', i.product_id,
       'product_name', i.product_name, 'quantity', i.quantity,
       'unit_price', i.unit_price, 'notes', i.notes
     )) filter (where i.id is not null), '[]'
   ) as items
-  from orders o left join order_items i on i.order_id = o.id
+  from orders o
+  left join table_sessions ts on ts.id = o.table_session_id
+  left join order_items i on i.order_id = o.id
 `;
 
 // ---------------------------------------------------------------------------
@@ -222,7 +224,7 @@ app.post('/api/order', requireDb, async (req, res) => {
     }
     await client.query('commit');
 
-    const full = await pool.query(`${ORDER_SELECT} where o.id=$1 group by o.id`, [order.id]);
+    const full = await pool.query(`${ORDER_SELECT} where o.id=$1 group by o.id, ts.table_id`, [order.id]);
     const hydrated = hydrateOrder(full.rows[0]);
     broadcast('order_created', hydrated);
     res.json(hydrated);
@@ -244,7 +246,7 @@ app.patch('/api/order/:id/status', requireDb, async (req, res) => {
       `update orders set ${sets.join(', ')} where id=$1 returning id`, [req.params.id, status]
     );
     if (!upd.rows[0]) return res.status(404).json({ error: 'Pedido no encontrado' });
-    const full = await pool.query(`${ORDER_SELECT} where o.id=$1 group by o.id`, [req.params.id]);
+    const full = await pool.query(`${ORDER_SELECT} where o.id=$1 group by o.id, ts.table_id`, [req.params.id]);
     const hydrated = hydrateOrder(full.rows[0]);
     broadcast('status_changed', hydrated);
     res.json(hydrated);
@@ -254,7 +256,7 @@ app.patch('/api/order/:id/status', requireDb, async (req, res) => {
 app.get('/api/order/session/:sessionId', requireDb, async (req, res) => {
   try {
     const r = await pool.query(
-      `${ORDER_SELECT} where o.table_session_id=$1 group by o.id order by o.created_at`, [req.params.sessionId]
+      `${ORDER_SELECT} where o.table_session_id=$1 group by o.id, ts.table_id order by o.created_at`, [req.params.sessionId]
     );
     res.json(r.rows.map(hydrateOrder));
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -267,7 +269,7 @@ app.get('/api/orders/active', requireDb, async (req, res) => {
       `${ORDER_SELECT}
        where o.store_id=$1 and o.status <> 'cancelled'
        and o.table_session_id in (select id from table_sessions where store_id=$1 and status='active')
-       group by o.id order by o.created_at`, [storeId]
+       group by o.id, ts.table_id order by o.created_at`, [storeId]
     );
     res.json(r.rows.map(hydrateOrder));
   } catch (e) { res.status(500).json({ error: String(e) }); }
@@ -277,7 +279,7 @@ app.get('/api/orders/all', requireDb, async (req, res) => {
   try {
     const { storeId } = req.query;
     const r = await pool.query(
-      `${ORDER_SELECT} where o.store_id=$1 group by o.id order by o.created_at`, [storeId]
+      `${ORDER_SELECT} where o.store_id=$1 group by o.id, ts.table_id order by o.created_at`, [storeId]
     );
     res.json(r.rows.map(hydrateOrder));
   } catch (e) { res.status(500).json({ error: String(e) }); }
