@@ -567,13 +567,26 @@ export function payAndCloseSession(sessionId: string): TableSession {
 // ============================================================================
 const localChannel = typeof window !== 'undefined' ? new BroadcastChannel('ventum_realtime') : null;
 
+// Listeners en la MISMA pestaña. Un BroadcastChannel NO recibe sus propios
+// mensajes, así que notificamos a estos directamente (además del canal para
+// otras pestañas). Sin esto, la pestaña que dispara un cambio —p. ej. la
+// cocina al pulsar "Iniciar preparación"— no refrescaría su propia UI.
+type BroadcastListener = (event: string, payload: any) => void;
+const localListeners = new Set<BroadcastListener>();
+
 export function triggerLocalBroadcast(event: string, payload: any) {
+  // Misma pestaña (síncrono)
+  localListeners.forEach((cb) => cb(event, payload));
+  // Otras pestañas / dispositivos en el mismo navegador
   if (localChannel) localChannel.postMessage({ event, payload });
 }
 
-export function subscribeToLocalBroadcast(callback: (event: string, payload: any) => void) {
-  if (!localChannel) return () => {};
+export function subscribeToLocalBroadcast(callback: BroadcastListener) {
+  localListeners.add(callback);
   const listener = (e: MessageEvent) => callback(e.data.event, e.data.payload);
-  localChannel.addEventListener('message', listener);
-  return () => localChannel.removeEventListener('message', listener);
+  localChannel?.addEventListener('message', listener);
+  return () => {
+    localListeners.delete(callback);
+    localChannel?.removeEventListener('message', listener);
+  };
 }
