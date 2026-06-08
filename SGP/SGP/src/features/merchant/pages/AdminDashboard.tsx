@@ -41,8 +41,10 @@ export const AdminDashboard: React.FC = () => {
   const reloadInventory = () => setInventory(getInventory());
   const reloadOrders = async () => {
     if (!store) return;
-    const { data } = await sgpApi.getAllStoreOrders(store.id);
-    setOrders(data ?? []);
+    const { data, error } = await sgpApi.getAllStoreOrders(store.id);
+    // No borrar las métricas si una recarga puntual falla o vuelve vacía por
+    // un corte transitorio: solo actualizamos cuando hay datos válidos.
+    if (!error && data) setOrders(data);
   };
 
   useEffect(() => {
@@ -64,7 +66,10 @@ export const AdminDashboard: React.FC = () => {
         reloadInventory();
       }
     });
-    return () => unsub();
+    // Respaldo: refresca métricas periódicamente en modo remoto (autocorrige
+    // cualquier evento perdido por el SSE).
+    const poll = usesRemoteBackend ? setInterval(reloadOrders, 5000) : null;
+    return () => { unsub(); if (poll) clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
 
