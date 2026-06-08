@@ -239,7 +239,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storeId,
       activeSession.id,
       itemsPayload,
-      orderNotes
+      orderNotes,
+      activeTable?.name,
     );
 
     if (orderErr) {

@@ -16,9 +16,11 @@ npm run preview  # sirve el build
 ```
 
 ## Modos de ejecución
-- **Mock (por defecto):** sin variables de entorno. Usa `localStorage` + `BroadcastChannel`. Todo funciona en la terminal.
-- **Supabase (opcional):** define `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (ver `.env.example`). Esquema en `supabase_schema.sql`.
-- **Claude/Sheila (opcional):** define `VITE_AI_PROXY_URL` apuntando a la Edge Function `supabase/functions/sheila`. Sin esto, Sheila usa el motor local.
+- **Mock (por defecto en `npm run dev`):** sin variables de entorno. Usa `localStorage` + `BroadcastChannel` (sincroniza entre pestañas del mismo navegador). Todo funciona en la terminal.
+- **Remoto (producción, `npm start`):** el servidor Express (`server.js`) sirve el frontend y expone una API REST de coordinación sobre **PostgreSQL** + realtime por **SSE** (`/api/events`). Sincroniza entre dispositivos (celular ↔ PC). Se activa con `DATABASE_URL`.
+- **Sheila con IA real (opcional):** define `GEMINI_API_KEY` en el servidor. Sin esto, Sheila usa el motor local determinista. El proxy a Gemini vive en `/api/sheila` (la key nunca llega al navegador).
+
+> Despliegue completo en [docs/DESPLIEGUE-RAILWAY.md](../../docs/DESPLIEGUE-RAILWAY.md). El menú, las mesas, el PIN y el inventario son estáticos del frontend; solo sesiones y pedidos viven en Postgres.
 
 ## Accesos de demo
 - Cliente: escanear mesa → PIN de mesa (Mesa N = `100N`, p. ej. Mesa 1 = `1001`).
@@ -28,7 +30,7 @@ npm run preview  # sirve el build
 ```
 src/
   context/AppContext.tsx        Estado global (sesión, carrito, rol)
-  lib/supabase.ts               API unificada mock/Supabase
+  lib/supabase.ts               API unificada (mock / REST+SSE)
   services/
     mockData.ts                 Menú, inventario, recetas, pedidos, broadcast
     qrService.ts                QR reales (qrcode)
@@ -40,8 +42,7 @@ src/
     auth/pages/StaffLogin.tsx
     merchant/pages/             KitchenDashboard, WaiterDashboard, AdminDashboard
     merchant/components/SupplyBar.tsx
-supabase/functions/sheila/      Edge Function (proxy a Claude, opcional)
-supabase_schema.sql             Esquema + RLS + inventario + tiempos
+server.js                       Express: frontend + API REST (Postgres) + SSE + proxy Gemini
 ```
 
 ## Notas

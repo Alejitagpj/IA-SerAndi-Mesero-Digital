@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../../context/AppContext';
-import sgpApi from '../../../lib/supabase';
+import sgpApi, { usesRemoteBackend } from '../../../lib/supabase';
 import type { Ingredient, IngredientGroup, Order, Table } from '../../../types';
-import { getInventory, resetInventory } from '../../../services/mockData';
+import { getInventory, resetInventory, decrementInventoryForOrder } from '../../../services/mockData';
 import { generateShoppingListPdf } from '../../../services/shoppingListPdf';
 import { generateTableQrDataUrl, tableQrTargetUrl } from '../../../services/qrService';
 import SupplyBar from '../components/SupplyBar';
@@ -48,9 +48,18 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     reloadInventory();
     reloadOrders();
-    const unsub = sgpApi.subscribeToBroadcast((event) => {
+    const unsub = sgpApi.subscribeToBroadcast((event, payload) => {
       if (event === 'inventory_changed') reloadInventory();
       if (event === 'order_created' || event === 'status_changed' || event === 'session_closed') {
+        // En modo remoto el inventario es local a este equipo: lo mermamos aquí
+        // al llegar un pedido nuevo (en mock ya se descontó al crearlo).
+        if (usesRemoteBackend && event === 'order_created' && payload?.items) {
+          decrementInventoryForOrder(
+            payload.items.map((i: { product_id: string; quantity: number }) => ({
+              productId: i.product_id, quantity: i.quantity,
+            }))
+          );
+        }
         reloadOrders();
         reloadInventory();
       }
